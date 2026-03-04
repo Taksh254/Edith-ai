@@ -1,0 +1,30 @@
+############################
+# Node / Vite
+############################
+node_modules/
+dist/
+
+############################
+# Env (never commit secrets)
+############################
+.env
+.env.*
+!.env.example
+
+############################
+# Logs
+############################
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+############################
+# IDE / OS
+############################
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db

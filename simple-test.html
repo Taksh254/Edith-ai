@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>Simple Supabase Test</h1>
+    <div id="result"></div>
+    
+    <script>
+        const result = document.getElementById('result');
+        
+        try {
+            const supabaseUrl = "https://cpzookbeubdhmbboucqb.supabase.co";
+            const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwem9va2JldWJkaG1iYm91Y3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMTcxNDAsImV4cCI6MjA4NzU5MzE0MH0.-VaeJrIJQacSETeA8j4204KntUFZ0X0_fprOEsN36Po";
+            
+            result.innerHTML = "Testing connection...";
+            
+            const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+            
+            // Test basic connection
+            supabase.from('profiles').select('count').then(response => {
+                console.log('Response:', response);
+                if (response.error) {
+                    result.innerHTML = `<h2>ERROR: ${response.error.message}</h2><p>This means the database tables are not set up.</p>`;
+                } else {
+                    result.innerHTML = `<h2>SUCCESS: Database connection working!</h2>`;
+                }
+            }).catch(err => {
+                console.error('Error:', err);
+                result.innerHTML = `<h2>FATAL ERROR: ${err.message}</h2>`;
+            });
+            
+        } catch (err) {
+            result.innerHTML = `<h2>INITIALIZATION ERROR: ${err.message}</h2>`;
+        }
+    </script>
+</body>
+</html>
