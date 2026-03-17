@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>EDITH Auth Debug</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>EDITH Authentication Debug</h1>
+    <div id="output"></div>
+    
+    <script>
+        const supabaseUrl = "https://cpzookbeubdhmbboucqb.supabase.co";
+        const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwem9va2JldWJkaG1iYm91Y3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMTcxNDAsImV4cCI6MjA4NzU5MzE0MH0.-VaeJrIJQacSETeA8j4204KntUFZ0X0_fprOEsN36Po";
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+        const output = document.getElementById('output');
+        
+        function log(message) {
+            console.log(message);
+            output.innerHTML += '<pre>' + JSON.stringify(message, null, 2) + '</pre><hr>';
+        }
+        
+        async function testConnection() {
+            log('Testing Supabase connection...');
+            
+            try {
+                // Test basic connection
+                const { data, error } = await supabase.from('profiles').select('count');
+                log('Connection test result:');
+                log({ data, error });
+                
+                if (error) {
+                    log('ERROR: Cannot access profiles table. Database may not be set up.');
+                    log('Please run the supabase-setup.sql in your Supabase dashboard.');
+                }
+                
+            } catch (err) {
+                log('Unexpected error:');
+                log(err);
+            }
+        }
+        
+        async function testSignup() {
+            log('Testing signup with test@example.com...');
+            
+            const { data, error } = await supabase.auth.signUp({
+                email: 'test@example.com',
+                password: 'test123456',
+                options: {
+                    data: {
+                        full_name: 'Test User'
+                    }
+                }
+            });
+            
+            log('Signup result:');
+            log({ data, error });
+            
+            if (data?.user && !data?.session) {
+                log('Email confirmation required. Check your email for the confirmation link.');
+            }
+        }
+        
+        async function testLogin() {
+            log('Testing login with test@example.com...');
+            
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email: 'test@example.com',
+                password: 'test123456'
+            });
+            
+            log('Login result:');
+            log({ data, error });
+        }
+        
+        // Run tests
+        testConnection();
+    </script>
+    
+    <button onclick="testSignup()">Test Signup</button>
+    <button onclick="testLogin()">Test Login</button>
+</body>
+</html>

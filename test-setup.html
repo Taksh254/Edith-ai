@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EDITH Setup Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #000; color: #0f0; }
+        .error { color: #f00; }
+        .success { color: #0f0; }
+        .warning { color: #ff0; }
+        pre { background: #111; padding: 10px; margin: 10px 0; }
+        button { background: #333; color: #0f0; border: 1px solid #0f0; padding: 10px; margin: 5px; cursor: pointer; }
+        button:hover { background: #0f0; color: #000; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <h1>🤖 E.D.I.T.H. Setup Diagnostics</h1>
+    <div id="output"></div>
+    
+    <hr>
+    <button onclick="testConnection()">Test Connection</button>
+    <button onclick="testDatabase()">Test Database Tables</button>
+    <button onclick="testSignup()">Test Signup</button>
+    <button onclick="testLogin()">Test Login</button>
+    <button onclick="clearOutput()">Clear Output</button>
+    
+    <script>
+        const supabaseUrl = "https://cpzookbeubdhmbboucqb.supabase.co";
+        const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNwem9va2JldWJkaG1iYm91Y3FiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMTcxNDAsImV4cCI6MjA4NzU5MzE0MH0.-VaeJrIJQacSETeA8j4204KntUFZ0X0_fprOEsN36Po";
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseAnonKey);
+        const output = document.getElementById('output');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            output.appendChild(div);
+            console.log(message);
+        }
+        
+        function logJSON(data, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = type;
+            div.innerHTML = `<strong>[${timestamp}]</strong><pre>${JSON.stringify(data, null, 2)}</pre>`;
+            output.appendChild(div);
+        }
+        
+        function clearOutput() {
+            output.innerHTML = '';
+        }
+        
+        async function testConnection() {
+            log('🔍 Testing Supabase connection...', 'info');
+            
+            try {
+                // Test basic connection
+                const { data, error } = await supabase.from('profiles').select('count');
+                
+                if (error) {
+                    log('❌ Connection failed: ' + error.message, 'error');
+                    if (error.message.includes('relation "profiles" does not exist')) {
+                        log('⚠️ DATABASE NOT SETUP: Run supabase-setup.sql in your Supabase dashboard!', 'warning');
+                    }
+                } else {
+                    log('✅ Connection successful!', 'success');
+                    logJSON(data, 'success');
+                }
+            } catch (err) {
+                log('❌ Unexpected error: ' + err.message, 'error');
+            }
+        }
+        
+        async function testDatabase() {
+            log('🗄️ Testing database tables...', 'info');
+            
+            const tables = ['profiles', 'chats', 'messages'];
+            
+            for (const table of tables) {
+                try {
+                    const { data, error } = await supabase.from(table).select('count');
+                    if (error) {
+                        log(`❌ Table '${table}': ${error.message}`, 'error');
+                    } else {
+                        log(`✅ Table '${table}' exists and accessible`, 'success');
+                    }
+                } catch (err) {
+                    log(`❌ Table '${table}': Unexpected error`, 'error');
+                }
+            }
+        }
+        
+        async function testSignup() {
+            log('👤 Testing user signup...', 'info');
+            
+            const testEmail = 'test+' + Date.now() + '@example.com';
+            const testPassword = 'test123456';
+            
+            try {
+                const { data, error } = await supabase.auth.signUp({
+                    email: testEmail,
+                    password: testPassword,
+                    options: {
+                        data: {
+                            full_name: 'Test User'
+                        }
+                    }
+                });
+                
+                if (error) {
+                    log('❌ Signup failed: ' + error.message, 'error');
+                } else {
+                    log('✅ Signup initiated!', 'success');
+                    logJSON(data, 'success');
+                    
+                    if (data.user && !data.session) {
+                        log('📧 Email confirmation required - check your email', 'warning');
+                    } else if (data.session) {
+                        log('✅ User created and logged in!', 'success');
+                    }
+                }
+            } catch (err) {
+                log('❌ Unexpected signup error: ' + err.message, 'error');
+            }
+        }
+        
+        async function testLogin() {
+            log('🔐 Testing user login...', 'info');
+            
+            try {
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: 'test@example.com',
+                    password: 'test123456'
+                });
+                
+                if (error) {
+                    log('❌ Login failed: ' + error.message, 'error');
+                    if (error.message.includes('Invalid login credentials')) {
+                        log('💡 Try signing up first, or check email/password', 'warning');
+                    }
+                } else {
+                    log('✅ Login successful!', 'success');
+                    logJSON(data, 'success');
+                }
+            } catch (err) {
+                log('❌ Unexpected login error: ' + err.message, 'error');
+            }
+        }
+        
+        // Auto-run connection test on load
+        window.onload = () => {
+            log('🚀 EDITH Diagnostics loaded', 'success');
+            log('📋 Click buttons above to test different components', 'info');
+            testConnection();
+        };
+    </script>
+</body>
+</html>

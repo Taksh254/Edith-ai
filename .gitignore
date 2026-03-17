@@ -4,3 +4,15 @@ frames/
 .env
 .vscode/
 node_modules/
+dist/
+.env.*
+!.env.example
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
