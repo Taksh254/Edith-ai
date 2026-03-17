@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import AnimatedOrb from './components/AnimatedOrb';
 import Chat from './components/Chat';
 import { chatWithEDITH } from './lib/groq';
+import { speakAsEDITH, stopSpeaking } from './lib/elevenlabs';
 import { getChats, createChat, getMessages, insertMessage, autoTitleChat, deleteChat } from './lib/database';
 
 export default function Dashboard({ onNavigate, session, onLogout }) {
@@ -30,7 +31,13 @@ export default function Dashboard({ onNavigate, session, onLogout }) {
     const [activeChatId, setActiveChatId] = useState(null);
     const [messages, setMessages] = useState([]);
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [sidebarWidth, setSidebarWidth] = useState(280);
+    const [leftWidth, setLeftWidth] = useState(300);
+    const [rightWidth, setRightWidth] = useState(300);
+    const [commHeight, setCommHeight] = useState(220);
     const [loadingChats, setLoadingChats] = useState(true);
+    const [voiceEnabled, setVoiceEnabled] = useState(true);
+    const voiceEnabledRef = useRef(true);
 
     /* ─── User info ─── */
     const userName = session?.user?.user_metadata?.full_name || session?.user?.email || 'Boss';
@@ -228,6 +235,9 @@ export default function Dashboard({ onNavigate, session, onLogout }) {
         async (text) => {
             setIsProcessing(true);
 
+            // Stop any ongoing speech when user sends a new message
+            stopSpeaking();
+
             try {
                 let chatId = activeChatId;
 
@@ -243,12 +253,39 @@ export default function Dashboard({ onNavigate, session, onLogout }) {
                 const userMsg = await insertMessage(chatId, 'user', text);
                 setMessages((prev) => [...prev, userMsg]);
 
-                // Call Groq with the full history
-                const reply = await chatWithEDITH(messages, text);
+                let reply = '';
+                
+                // 1. Try to execute as a system command via our Node backend
+                try {
+                    const cmdResponse = await fetch('http://localhost:3001/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: text })
+                    });
+                    
+                    if (cmdResponse.ok) {
+                        const data = await cmdResponse.json();
+                        // If the backend returned a command result (intercepted), use it
+                        // Otherwise it might just be the AI reply from the backend
+                        reply = data.reply;
+                    }
+                } catch (cmdErr) {
+                    console.warn('Backend command execution unavailable, falling back to local chat.', cmdErr);
+                }
+
+                // 2. If backend didn't handle it (or failed), use our local Groq logic
+                if (!reply) {
+                    reply = await chatWithEDITH(messages, text);
+                }
 
                 // Save assistant reply to Supabase
                 const assistantMsg = await insertMessage(chatId, 'assistant', reply);
                 setMessages((prev) => [...prev, assistantMsg]);
+
+                // 🔊 Speak the reply using ElevenLabs TTS
+                if (voiceEnabledRef.current) {
+                    speakAsEDITH(reply);
+                }
 
                 // Auto-title the chat on the first message
                 if (messages.length === 0) {
@@ -288,56 +325,108 @@ export default function Dashboard({ onNavigate, session, onLogout }) {
         ? (batteryLevel > 50 ? 'green' : batteryLevel > 20 ? 'orange' : 'red')
         : 'cyan';
 
+    /* ─── Resize Handlers ── */
+    const handleResizeSidebar = (e) => {
+        const startX = e.clientX;
+        const startWidth = sidebarWidth;
+        const onMouseMove = (moveEvent) => {
+            const delta = moveEvent.clientX - startX;
+            setSidebarWidth(Math.max(200, Math.min(500, startWidth + delta)));
+        };
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
+    const handleResizeLeft = (e) => {
+        const startX = e.clientX;
+        const startWidth = leftWidth;
+        const onMouseMove = (moveEvent) => {
+            const delta = moveEvent.clientX - startX;
+            setLeftWidth(Math.max(150, Math.min(600, startWidth + delta)));
+        };
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
+    const handleResizeRight = (e) => {
+        const startX = e.clientX;
+        const startWidth = rightWidth;
+        const onMouseMove = (moveEvent) => {
+            const delta = startX - moveEvent.clientX;
+            setRightWidth(Math.max(150, Math.min(600, startWidth + delta)));
+        };
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        };
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
     return (
         <div className="hud-dashboard has-sidebar">
             {/* ========== CHAT SIDEBAR ========== */}
-            <aside className={`chat-sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
-                <div className="sidebar-header">
-                    <h2 className="sidebar-title">◈ CHAT LOG</h2>
-                    <button
-                        className="sidebar-new-btn"
-                        onClick={handleNewChat}
-                        title="New Chat"
-                    >
-                        + NEW
-                    </button>
-                </div>
-
-                <div className="sidebar-chats">
-                    {loadingChats ? (
-                        <div className="sidebar-loading">Loading chats...</div>
-                    ) : chats.length === 0 ? (
-                        <div className="sidebar-empty">No chats yet. Start talking!</div>
-                    ) : (
-                        chats.map((chat) => (
-                            <div
-                                key={chat.id}
-                                className={`sidebar-chat-item ${activeChatId === chat.id ? 'active' : ''}`}
-                                onClick={() => handleSelectChat(chat.id)}
-                            >
-                                <span className="chat-item-icon">▸</span>
-                                <span className="chat-item-title">{chat.title}</span>
-                                <button
-                                    className="chat-item-delete"
-                                    onClick={(e) => handleDeleteChat(chat.id, e)}
-                                    title="Delete Chat"
-                                >
-                                    ✕
-                                </button>
-                            </div>
-                        ))
-                    )}
-                </div>
-
-                <div className="sidebar-footer">
-                    <div className="sidebar-user">
-                        <span className="sidebar-user-dot" />
-                        <span className="sidebar-user-name">{userName}</span>
+            <aside 
+                className={`chat-sidebar ${sidebarOpen ? 'open' : 'closed'}`}
+                style={{ width: sidebarOpen ? `${sidebarWidth}px` : '0', minWidth: sidebarOpen ? `${sidebarWidth}px` : '0' }}
+            >
+                <div className="sidebar-content">
+                    <div className="sidebar-header">
+                        <h2 className="sidebar-title">◈ CHAT LOG</h2>
+                        <button
+                            className="sidebar-new-btn"
+                            onClick={handleNewChat}
+                            title="New Chat"
+                        >
+                            + NEW
+                        </button>
                     </div>
-                    <button className="sidebar-logout" onClick={onLogout}>
-                        LOGOUT ⏻
-                    </button>
+
+                    <div className="sidebar-chats">
+                        {loadingChats ? (
+                            <div className="sidebar-loading">Loading chats...</div>
+                        ) : chats.length === 0 ? (
+                            <div className="sidebar-empty">No chats yet. Start talking!</div>
+                        ) : (
+                            chats.map((chat) => (
+                                <div
+                                    key={chat.id}
+                                    className={`sidebar-chat-item ${activeChatId === chat.id ? 'active' : ''}`}
+                                    onClick={() => handleSelectChat(chat.id)}
+                                >
+                                    <span className="chat-item-icon">▸</span>
+                                    <span className="chat-item-title">{chat.title}</span>
+                                    <button
+                                        className="chat-item-delete"
+                                        onClick={(e) => handleDeleteChat(chat.id, e)}
+                                        title="Delete Chat"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+                            ))
+                        )}
+                    </div>
+
+                    <div className="sidebar-footer">
+                        <div className="sidebar-user">
+                            <span className="sidebar-user-dot" />
+                            <span className="sidebar-user-name">{userName}</span>
+                        </div>
+                        <button className="sidebar-logout" onClick={onLogout}>
+                            LOGOUT ⏻
+                        </button>
+                    </div>
                 </div>
+                {sidebarOpen && <div className="resizer-h" onMouseDown={handleResizeSidebar} />}
             </aside>
 
             {/* ========== MAIN CONTENT ========== */}
@@ -390,6 +479,21 @@ export default function Dashboard({ onNavigate, session, onLogout }) {
                     </div>
 
                     <div className="topbar-actions">
+                        <button
+                            className={`icon-btn ${voiceEnabled ? 'voice-on' : 'voice-off'}`}
+                            title={voiceEnabled ? 'Mute EDITH Voice' : 'Unmute EDITH Voice'}
+                            id="btn-voice-toggle"
+                            onClick={() => {
+                                setVoiceEnabled((prev) => {
+                                    const next = !prev;
+                                    voiceEnabledRef.current = next;
+                                    if (!next) stopSpeaking();
+                                    return next;
+                                });
+                            }}
+                        >
+                            {voiceEnabled ? '🔊' : '🔇'}
+                        </button>
                         <button className="icon-btn" title="Settings" id="btn-settings">⚙</button>
                         <button className="icon-btn" title="Notifications" id="btn-notifications">🔔</button>
                     </div>
@@ -398,7 +502,7 @@ export default function Dashboard({ onNavigate, session, onLogout }) {
                 {/* ========== MAIN 3-COLUMN GRID ========== */}
                 <main className="hud-main-grid">
                     {/* ── Left: SYSTEM ── */}
-                    <section className="glass-panel" id="panel-system">
+                    <section className="glass-panel" id="panel-system" style={{ width: `${leftWidth}px` }}>
                         <div className="panel-header">
                             <span className="panel-header-icon">⬡</span>
                             <h2>System</h2>
@@ -427,6 +531,8 @@ export default function Dashboard({ onNavigate, session, onLogout }) {
                         </div>
                     </section>
 
+                    <div className="resizer-h" onMouseDown={handleResizeLeft} />
+
                     {/* ── Center: EDITH ── */}
                     <section className="glass-panel ai-core-panel" id="panel-ai-core">
                         <div className="panel-header">
@@ -439,8 +545,10 @@ export default function Dashboard({ onNavigate, session, onLogout }) {
                         </div>
                     </section>
 
+                    <div className="resizer-h" onMouseDown={handleResizeRight} />
+
                     {/* ── Right: TELEMETRY (REAL DATA) ── */}
-                    <section className="glass-panel" id="panel-telemetry">
+                    <section className="glass-panel" id="panel-telemetry" style={{ width: `${rightWidth}px` }}>
                         <div className="panel-header">
                             <span className="panel-header-icon">📊</span>
                             <h2>Telemetry</h2>
@@ -508,7 +616,7 @@ export default function Dashboard({ onNavigate, session, onLogout }) {
                 </main>
 
                 {/* ========== COMM LOG + COMMAND BAR ========== */}
-                <Chat messages={displayMessages} onSend={handleSend} />
+                <Chat messages={displayMessages} onSend={handleSend} height={commHeight} onResize={setCommHeight} />
             </div>
         </div>
     );

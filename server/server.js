@@ -4,6 +4,7 @@ import mongoose from 'mongoose';
 import Groq from 'groq-sdk';
 import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
+import { executeCommand } from './commands.js';
 
 dotenv.config();
 
@@ -60,6 +61,17 @@ app.post('/api/chat', async (req, res) => {
 
         if (!message || !message.trim()) {
             return res.status(400).json({ error: 'Message is required.' });
+        }
+
+        // 1. Check if the message is a local system command
+        const cmdResult = await executeCommand(message);
+        if (cmdResult) {
+            // Add to history so EDITH remembers it
+            conversationHistory.push({ role: 'user', content: message });
+            conversationHistory.push({ role: 'assistant', content: cmdResult });
+            
+            // Return command output immediately
+            return res.json({ reply: cmdResult });
         }
 
         // Add user message to history

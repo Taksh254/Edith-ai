@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 
 /**
  * Chat — Communication log + command input bar.
@@ -6,14 +6,8 @@ import React, { useState, useRef, useEffect } from 'react';
  *
  * @param {{ messages: Array, onSend: function }} props
  */
-export default function Chat({ messages = [], onSend }) {
+export default function Chat({ messages = [], onSend, height = 220, onResize }) {
     const [input, setInput] = useState('');
-    const logEndRef = useRef(null);
-
-    // Auto-scroll to newest message
-    useEffect(() => {
-        logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
 
     const handleSend = () => {
         const trimmed = input.trim();
@@ -38,15 +32,37 @@ export default function Chat({ messages = [], onSend }) {
         });
     };
 
+    // Vertical resize handler
+    const handleMouseDown = (e) => {
+        const startY = e.clientY;
+        const startHeight = height;
+
+        const handleMouseMove = (moveEvent) => {
+            const delta = startY - moveEvent.clientY;
+            onResize(Math.max(100, Math.min(600, startHeight + delta)));
+        };
+
+        const handleMouseUp = () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    };
+
     return (
         <>
+            {/* --- Vertical Resizer Handle --- */}
+            <div className="resizer-v" onMouseDown={handleMouseDown} />
+
             {/* --- Communication Log Panel --- */}
-            <div className="glass-panel comm-log-panel" id="comm-log">
+            <div className="glass-panel comm-log-panel" id="comm-log" style={{ height: `${height}px`, maxHeight: 'none' }}>
                 <div className="panel-header">
                     <span className="panel-header-icon">📡</span>
                     <h2>Communication Log</h2>
                 </div>
-                <div className="comm-log-messages" role="log" aria-live="polite">
+                <div className="comm-log-messages" role="log" aria-live="polite" style={{ maxHeight: 'none' }}>
                     {messages.map((msg, idx) => (
                         <div key={idx} className={`comm-message ${msg.type}`}>
                             <span className="msg-timestamp">{formatTime(msg.time)}</span>
@@ -64,7 +80,6 @@ export default function Chat({ messages = [], onSend }) {
                             <span className="msg-text">{msg.text}</span>
                         </div>
                     ))}
-                    <div ref={logEndRef} />
                 </div>
             </div>
 

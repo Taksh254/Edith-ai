@@ -157,11 +157,20 @@ body::after {
   flex-direction: column;
   min-height: 100vh;
   padding: var(--gap);
-  gap: var(--gap);
+  gap: 0; /* Gaps handled by resizers and manual margins */
   max-width: 1440px;
   margin: 0 auto;
   position: relative;
   overflow-x: hidden;
+}
+
+/* Add margin between topbar and main grid since no resizer is there */
+.hud-topbar + .hud-main-grid {
+  margin-top: var(--gap);
+}
+/* Command bar still needs its top margin */
+.comm-log-panel + .command-bar {
+  margin-top: var(--gap);
 }
 
 /* ============================================================
@@ -175,13 +184,20 @@ body::after {
   position: sticky;
   top: 0;
   display: flex;
-  flex-direction: column;
   background: rgba(6, 12, 24, 0.95);
   border-right: 1px solid var(--glass-border);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  transition: all 0.3s ease;
+  transition: opacity 0.3s ease;
   z-index: 10;
+}
+
+.sidebar-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100%;
 }
 
 .chat-sidebar.closed {
@@ -535,12 +551,52 @@ body::after {
   background: rgba(0, 229, 255, 0.05);
 }
 
+/* --- Voice Toggle Button --- */
+.icon-btn.voice-on {
+  border-color: rgba(0, 230, 118, 0.35);
+  color: var(--neon-green);
+  background: rgba(0, 230, 118, 0.08);
+  box-shadow: 0 0 10px rgba(0, 230, 118, 0.15);
+}
+
+.icon-btn.voice-on:hover {
+  border-color: var(--neon-green);
+  box-shadow: 0 0 15px rgba(0, 230, 118, 0.3), 0 0 40px rgba(0, 230, 118, 0.1);
+  background: rgba(0, 230, 118, 0.12);
+}
+
+.icon-btn.voice-off {
+  border-color: rgba(255, 23, 68, 0.2);
+  color: var(--text-muted);
+  background: rgba(255, 23, 68, 0.04);
+  opacity: 0.7;
+}
+
+.icon-btn.voice-off:hover {
+  border-color: var(--neon-red);
+  color: var(--neon-red);
+  opacity: 1;
+  box-shadow: 0 0 10px rgba(255, 23, 68, 0.2);
+  background: rgba(255, 23, 68, 0.08);
+}
+
 /* --- Main Grid --- */
 .hud-main-grid {
-  display: grid;
-  grid-template-columns: 1fr 1.4fr 1fr;
-  gap: var(--gap);
+  display: flex;
+  gap: 0;
   flex: 1;
+  min-height: 0; /* Allow inner content to scroll */
+}
+
+/* Ensure panels don't shrink below content */
+.glass-panel {
+  min-width: 50px;
+  min-height: 50px;
+}
+
+.ai-core-panel {
+  flex: 1;
+  min-width: 200px;
 }
 
 /* --- Glass Panel --- */
@@ -935,9 +991,9 @@ body::after {
    ============================================================ */
 
 .comm-log-panel {
-  max-height: 220px;
   display: flex;
   flex-direction: column;
+  transition: opacity 0.3s ease, border-color 0.3s ease !important; /* Limit transitions to safe properties */
 }
 
 .comm-log-messages {
@@ -1271,6 +1327,73 @@ body::after {
 }
 
 /* --- Blink animation for LIVE indicator --- */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ============================================================
+   RESIZABLE HANDLES
+   ============================================================ */
+
+.resizer-h {
+  width: var(--gap);
+  cursor: col-resize;
+  position: relative;
+  z-index: 5;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.resizer-h::after {
+  content: '';
+  position: absolute;
+  top: 10%;
+  bottom: 10%;
+  left: 50%;
+  width: 1px;
+  background: var(--glass-border);
+  transform: translateX(-50%);
+  transition: all 0.2s;
+  opacity: 0; /* Hide by default to keep the clean "space" look */
+}
+
+.resizer-h:hover::after {
+  opacity: 1;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 10px var(--neon-cyan);
+  width: 2px;
+}
+
+.resizer-v {
+  height: var(--gap);
+  cursor: row-resize;
+  position: relative;
+  z-index: 5;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.resizer-v::after {
+  content: '';
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 50%;
+  height: 1px;
+  background: var(--glass-border);
+  transform: translateY(-50%);
+  transition: all 0.2s;
+  opacity: 0;
+}
+
+.resizer-v:hover::after {
+  opacity: 1;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 10px var(--neon-cyan);
+  height: 2px;
+}
+
 @keyframes blink {
 
   0%,
