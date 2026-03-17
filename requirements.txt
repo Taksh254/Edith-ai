@@ -1,0 +1,10 @@
+ollama
+requests
+pyttsx3
+SpeechRecognition
+groq
+customtkinter
+Pillow
+pygame
+pyautogui
+screen-brightness-control

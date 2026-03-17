@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+frames/
+.env
+.vscode/
+node_modules/
